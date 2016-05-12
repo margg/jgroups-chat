@@ -3,24 +3,12 @@ package pl.edu.agh.ds.chat;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
 import org.jgroups.Receiver;
-import org.jgroups.protocols.BARRIER;
-import org.jgroups.protocols.FD_ALL;
-import org.jgroups.protocols.FD_SOCK;
-import org.jgroups.protocols.FRAG2;
-import org.jgroups.protocols.MERGE2;
-import org.jgroups.protocols.MFC;
-import org.jgroups.protocols.PING;
-import org.jgroups.protocols.UDP;
-import org.jgroups.protocols.UFC;
-import org.jgroups.protocols.UNICAST2;
-import org.jgroups.protocols.VERIFY_SUSPECT;
+import org.jgroups.protocols.*;
 import org.jgroups.protocols.pbcast.*;
 import org.jgroups.stack.ProtocolStack;
 import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatAction;
 import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatAction.ActionType;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -36,18 +24,20 @@ public class Chat {
     private final JChannel managementChannel;
     private final Map<String, List<String>> chatState;
     private final String nickname;
+    private MessageCachingReceiver messageCachingReceiver;
 
-    public Chat(String nickname) throws Exception {
+    public Chat(String nickname, MessageCachingReceiver messageCachingReceiver) throws Exception {
         this.nickname = nickname;
+        this.messageCachingReceiver = messageCachingReceiver;
         this.userChannels = new HashMap<>();
-        this.managementChannel = initMgmtChannel();
         this.chatState = new ConcurrentHashMap<>();
+        this.managementChannel = initMgmtChannel();
     }
 
     public void connectToChannel(String channelName) {
         try {
             JChannel channel =
-                    initChannel(channelName, new ChatMessageReceiverAdapter(), CHANNEL_BASE_MCAST_ADDRESS + channelName);
+                    initChannel(channelName, new ChatMessageReceiverAdapter(channelName, messageCachingReceiver), CHANNEL_BASE_MCAST_ADDRESS + channelName);
             userChannels.put(channelName, channel);
 
             managementChannel.send(createActionMessage(nickname, channelName, ActionType.JOIN));
@@ -87,14 +77,6 @@ public class Chat {
         }
     }
 
-    private JChannel initMgmtChannel() throws Exception {
-        JChannel channel =
-                initChannel(MANAGEMENT_CHANNEL_NAME, new ManagemementReceiverAdapter(this), MGMT_CHANNEL_MCAST_ADDRESS);
-        channel.getState(null, 10000);
-        return channel;
-    }
-
-
     private Message createActionMessage(String nick, String channelName, ActionType actionType) {
         ChatAction action = ChatAction.newBuilder()
                 .setNickname(nick)
@@ -110,30 +92,20 @@ public class Chat {
         return msg;
     }
 
-    private void eventLoop() {
-        BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-        while (true) {
-//            try {
-//                System.out.print("> ");
-//                System.out.flush();
-//                String line = in.readLine().toLowerCase();
-//                if (line.startsWith("quit") || line.startsWith("exit"))
-//                    break;
-//                line = "[" + user_name + "] " + line;
-//                Message msg = new Message(null, null, line);
-//                channel.send(msg);
-//            } catch (Exception e) {
-//            }
-        }
+    private JChannel initMgmtChannel() throws Exception {
+        JChannel channel =
+                initChannel(MANAGEMENT_CHANNEL_NAME, new ManagemementReceiverAdapter(this), MGMT_CHANNEL_MCAST_ADDRESS);
+        channel.getState(null, 10000);
+        return channel;
     }
 
     private JChannel initChannel(String channelName, Receiver receiver, String multicastAddress) {
         JChannel channel = null;
         try {
             channel = createBaseChannel(multicastAddress);
+            channel.setName(nickname);
             channel.setReceiver(receiver);
             channel.connect(channelName);
-            channel.getState(null, 10000);
         } catch (UnknownHostException e) {
             e.printStackTrace();
         } catch (Exception e) {

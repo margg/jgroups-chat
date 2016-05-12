@@ -6,15 +6,22 @@ import org.jgroups.View;
 
 public class ChatMessageReceiverAdapter extends ReceiverAdapter {
 
-    @Override
-    public void viewAccepted(View newView) {
-        super.viewAccepted(newView);
-        System.out.println("** Channel view changed: " + newView);
+    private MessageCachingReceiver receiver;
+    private String channelName;
+
+    public ChatMessageReceiverAdapter(String channelName, MessageCachingReceiver receiver) {
+        this.channelName = channelName;
+        this.receiver = receiver;
     }
+
+//    @Override
+//    public void viewAccepted(View newView) {
+//        super.viewAccepted(newView);
+//        System.out.println("** Channel view changed: " + newView);
+//    }
 
     @Override
     public void receive(Message msg) {
-        String line = msg.getSrc() + ": " + msg.getObject();
-        System.out.println(line);
+        receiver.putMessage(channelName, msg.getSrc().toString(), (String) msg.getObject());
     }
 }

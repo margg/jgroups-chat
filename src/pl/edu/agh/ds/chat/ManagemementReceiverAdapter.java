@@ -27,6 +27,9 @@ public class ManagemementReceiverAdapter extends ReceiverAdapter {
 
     @Override
     public void viewAccepted(View newView) {
+
+        //TODO
+
         super.viewAccepted(newView);
         System.out.println("** Cluster view changed: " + newView);
     }
