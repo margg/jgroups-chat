@@ -1,5 +1,6 @@
 package pl.edu.agh.ds.chat;
 
+import org.jgroups.Address;
 import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
@@ -17,21 +18,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ManagemementReceiverAdapter extends ReceiverAdapter {
+public class ManagementReceiverAdapter extends ReceiverAdapter {
 
     private Chat chat;
 
-    public ManagemementReceiverAdapter(Chat chat) {
+    public ManagementReceiverAdapter(Chat chat) {
         this.chat = chat;
     }
 
     @Override
     public void viewAccepted(View newView) {
-
-        //TODO
-
         super.viewAccepted(newView);
         System.out.println("** Cluster view changed: " + newView);
+        List<String> currentMemberNames = new ArrayList<>();
+        for (Address member : newView.getMembers()) {
+            currentMemberNames.add(member.toString());
+        }
+        chat.updateUsers(currentMemberNames);
     }
 
     @Override
@@ -58,9 +61,7 @@ public class ManagemementReceiverAdapter extends ReceiverAdapter {
                         .build());
             }
         }
-        ChatState state = ChatState.newBuilder().addAllState(actionList).build();
-
-        Util.objectToStream(state, new DataOutputStream(output));
+        Util.objectToStream(ChatState.newBuilder().addAllState(actionList).build(), new DataOutputStream(output));
     }
 
     @Override
@@ -71,7 +72,7 @@ public class ManagemementReceiverAdapter extends ReceiverAdapter {
         for (ChatAction action : state.getStateList()) {
             String channel = action.getChannel();
             String nickname = action.getNickname();
-//            if (action.getAction() == ActionType.JOIN) {
+            if (action.getAction() == ActionType.JOIN) {
                 if (newChatState.containsKey(channel)) {
                     newChatState.get(channel).add(nickname);
                 } else {
@@ -79,10 +80,9 @@ public class ManagemementReceiverAdapter extends ReceiverAdapter {
                     users.add(nickname);
                     newChatState.put(channel, users);
                 }
-//            }
+            }
 
         }
         chat.updateState(newChatState);
     }
-
 }

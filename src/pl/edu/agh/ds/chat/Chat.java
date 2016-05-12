@@ -20,24 +20,27 @@ public class Chat {
     private static final String CHANNEL_BASE_MCAST_ADDRESS = "230.0.0.";
     private static final String MANAGEMENT_CHANNEL_NAME = "ChannelManagement321123";
 
-    private final Map<String, JChannel> userChannels;
     private final JChannel managementChannel;
+    private final Map<String, JChannel> userChannels;
     private final Map<String, List<String>> chatState;
-    private final String nickname;
-    private MessageCachingReceiver messageCachingReceiver;
+    private final Set<String> users;
 
-    public Chat(String nickname, MessageCachingReceiver messageCachingReceiver) throws Exception {
+    private final String nickname;
+    private MessagePrinter messagePrinter;
+
+    public Chat(String nickname, MessagePrinter messagePrinter) throws Exception {
         this.nickname = nickname;
-        this.messageCachingReceiver = messageCachingReceiver;
+        this.messagePrinter = messagePrinter;
         this.userChannels = new HashMap<>();
         this.chatState = new ConcurrentHashMap<>();
+        this.users = Collections.newSetFromMap(new ConcurrentHashMap<>());
         this.managementChannel = initMgmtChannel();
     }
 
     public void connectToChannel(String channelName) {
         try {
-            JChannel channel =
-                    initChannel(channelName, new ChatMessageReceiverAdapter(channelName, messageCachingReceiver), CHANNEL_BASE_MCAST_ADDRESS + channelName);
+            JChannel channel = initChannel(channelName, new ChatMessageReceiverAdapter(channelName, messagePrinter),
+                    CHANNEL_BASE_MCAST_ADDRESS + channelName);
             userChannels.put(channelName, channel);
 
             managementChannel.send(createActionMessage(nickname, channelName, ActionType.JOIN));
@@ -47,9 +50,22 @@ public class Chat {
     }
 
     public void sendMessage(String message, String channelName) throws Exception {
-        JChannel channel = userChannels.get(channelName);
-        Message msg = createObjectMessage(message);
-        channel.send(msg);
+        if (userChannels.containsKey(channelName)) {
+            JChannel channel = userChannels.get(channelName);
+            Message msg = createObjectMessage(message);
+            channel.send(msg);
+        } else {
+            connectToChannel(channelName);
+            sendMessage(message, channelName);
+        }
+    }
+
+    public void leaveChat() throws Exception {
+        for (String userChannel : userChannels.keySet()) {
+            managementChannel.send(createActionMessage(nickname, userChannel, ActionType.LEAVE));
+            userChannels.get(userChannel).close();
+        }
+        managementChannel.close();
     }
 
     public Map<String, List<String>> getChatState() {
@@ -59,6 +75,20 @@ public class Chat {
     public void updateState(Map<String, List<String>> newChatState) {
         this.chatState.clear();
         this.chatState.putAll(newChatState);
+    }
+
+    public void updateUsers(List<String> currentUserNames) {
+        users.clear();
+        users.addAll(currentUserNames);
+
+        for (List<String> channelUsers : chatState.values()) {
+            channelUsers.retainAll(users);
+        }
+        for (Map.Entry<String, List<String>> stateEntry : chatState.entrySet()) {
+            if (stateEntry.getValue().isEmpty()) {
+                chatState.remove(stateEntry.getKey());
+            }
+        }
     }
 
     public void userJoined(String nickname, String channel) {
@@ -94,7 +124,7 @@ public class Chat {
 
     private JChannel initMgmtChannel() throws Exception {
         JChannel channel =
-                initChannel(MANAGEMENT_CHANNEL_NAME, new ManagemementReceiverAdapter(this), MGMT_CHANNEL_MCAST_ADDRESS);
+                initChannel(MANAGEMENT_CHANNEL_NAME, new ManagementReceiverAdapter(this), MGMT_CHANNEL_MCAST_ADDRESS);
         channel.getState(null, 10000);
         return channel;
     }
