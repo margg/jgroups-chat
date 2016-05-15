@@ -1,5 +1,7 @@
 package pl.edu.agh.ds.chat;
 
+import com.sun.javaws.exceptions.InvalidArgumentException;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.List;
@@ -31,11 +33,23 @@ public class Main {
                     System.out.println();
                 } else if (line.startsWith("connect ")) {
                     String channelName = line.split(" ")[1];
-                    chat.connectToChannel(channelName);
-                    System.out.println("Connected to channel " + channelName);
+                    try {
+                        if (Integer.valueOf(channelName) <= 200 && Integer.valueOf(channelName) >= 1) {
+                            chat.connectToChannel(channelName);
+                            System.out.println("Connected to channel " + channelName);
+                        } else {
+                            System.out.println("Invalid channel name. Must be an integer between 1 and 200.");
+                        }
+                    } catch (NumberFormatException e) {
+                        System.out.println("Invalid channel name. Must be an integer between 1 and 200.");
+                    }
                 } else if (line.startsWith("disconnect ")) {
                     String channelName = line.split(" ")[1];
-                    chat.disconnectFromChannel(channelName);
+                    try {
+                        chat.disconnectFromChannel(channelName);
+                    } catch (InvalidArgumentException e) {
+                        System.out.println("Invalid channel name.");
+                    }
                     System.out.println("Disconnected from channel " + channelName);
                 } else if (line.startsWith("exit")) {
                     chat.leaveChat();
