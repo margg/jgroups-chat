@@ -51,6 +51,7 @@ public class ManagementReceiverAdapter extends ReceiverAdapter {
     public void getState(OutputStream output) throws Exception {
         List<ChatAction> actionList = new ArrayList<>();
         Map<String, List<String>> chatState = chat.getChatState();
+
         for (String channel : chatState.keySet()) {
             List<String> users = chatState.get(channel);
             for (String user : users) {

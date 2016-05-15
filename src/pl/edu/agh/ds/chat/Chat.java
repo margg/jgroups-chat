@@ -10,7 +10,6 @@ import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatAction;
 import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatAction.ActionType;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,7 +22,6 @@ public class Chat {
     private final JChannel managementChannel;
     private final Map<String, JChannel> userChannels;
     private final Map<String, List<String>> chatState;
-    private final Set<String> users;
 
     private final String nickname;
     private MessagePrinter messagePrinter;
@@ -33,19 +31,25 @@ public class Chat {
         this.messagePrinter = messagePrinter;
         this.userChannels = new HashMap<>();
         this.chatState = new ConcurrentHashMap<>();
-        this.users = Collections.newSetFromMap(new ConcurrentHashMap<>());
         this.managementChannel = initMgmtChannel();
     }
 
-    public void connectToChannel(String channelName) {
-        try {
-            JChannel channel = initChannel(channelName, new ChatMessageReceiverAdapter(channelName, messagePrinter),
-                    CHANNEL_BASE_MCAST_ADDRESS + channelName);
-            userChannels.put(channelName, channel);
+    public void connectToChannel(String channelName) throws Exception {
+        JChannel channel = initChannel(channelName, new ChatMessageReceiverAdapter(channelName, messagePrinter),
+                CHANNEL_BASE_MCAST_ADDRESS + channelName);
+        userChannels.put(channelName, channel);
 
-            managementChannel.send(createActionMessage(nickname, channelName, ActionType.JOIN));
-        } catch (Exception e) {
-            e.printStackTrace();
+        managementChannel.send(createActionMessage(nickname, channelName, ActionType.JOIN));
+    }
+
+    public void disconnectFromChannel(String channelName) throws Exception {
+        if (userChannels.containsKey(channelName)) {
+            userChannels.get(channelName).close();
+            userChannels.remove(channelName);
+
+            managementChannel.send(createActionMessage(nickname, channelName, ActionType.LEAVE));
+        } else {
+            throw new IllegalArgumentException("Disconnecting from not connected channel.");
         }
     }
 
@@ -78,11 +82,8 @@ public class Chat {
     }
 
     public void updateUsers(List<String> currentUserNames) {
-        users.clear();
-        users.addAll(currentUserNames);
-
         for (List<String> channelUsers : chatState.values()) {
-            channelUsers.retainAll(users);
+            channelUsers.retainAll(currentUserNames);
         }
         for (Map.Entry<String, List<String>> stateEntry : chatState.entrySet()) {
             if (stateEntry.getValue().isEmpty()) {
@@ -129,22 +130,15 @@ public class Chat {
         return channel;
     }
 
-    private JChannel initChannel(String channelName, Receiver receiver, String multicastAddress) {
-        JChannel channel = null;
-        try {
-            channel = createBaseChannel(multicastAddress);
-            channel.setName(nickname);
-            channel.setReceiver(receiver);
-            channel.connect(channelName);
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    private JChannel initChannel(String channelName, Receiver receiver, String multicastAddress) throws Exception {
+        JChannel channel = createBaseChannel(multicastAddress);
+        channel.setName(nickname);
+        channel.setReceiver(receiver);
+        channel.connect(channelName);
         return channel;
     }
 
-    private JChannel createBaseChannel(String multicastAddress) throws UnknownHostException {
+    private JChannel createBaseChannel(String multicastAddress) throws Exception {
         JChannel channel = new JChannel(false);
         ProtocolStack stack = new ProtocolStack();
         channel.setProtocolStack(stack);
@@ -164,11 +158,7 @@ public class Chat {
                 .addProtocol(new FRAG2())
                 .addProtocol(new STATE_TRANSFER())
                 .addProtocol(new FLUSH());
-        try {
-            stack.init();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        stack.init();
         return channel;
     }
 }

@@ -33,6 +33,10 @@ public class Main {
                     String channelName = line.split(" ")[1];
                     chat.connectToChannel(channelName);
                     System.out.println("Connected to channel " + channelName);
+                } else if (line.startsWith("disconnect ")) {
+                    String channelName = line.split(" ")[1];
+                    chat.disconnectFromChannel(channelName);
+                    System.out.println("Disconnected from channel " + channelName);
                 } else if (line.startsWith("exit")) {
                     chat.leaveChat();
                     System.out.println("Be back!");
@@ -54,22 +58,25 @@ public class Main {
 
     private static void printHelp() {
         System.out.println("Please type:");
-        System.out.println("\thelp         \tto view this help");
-        System.out.println("\tshow         \tto show current chat state");
-        System.out.println("\tconnect <n>  \tto connect to channel <n> (n between 1 and 200)");
-        System.out.println("\t<n> <message>\tto send message to channel <n>");
-        System.out.println("\texit         \tto exit application");
+        System.out.println("\thelp          \tto view this help");
+        System.out.println("\tshow          \tto show current chat state");
+        System.out.println("\tconnect <n>   \tto connect to channel <n> (n between 1 and 200)");
+        System.out.println("\tdisconnect <n>\tto disconnect from channel <n>");
+        System.out.println("\t<n> <message> \tto send message to channel <n>");
+        System.out.println("\texit          \tto exit application");
     }
 
     private static void printChannelState(Chat chat) {
         Map<String, List<String>> chatState = chat.getChatState();
-        System.out.println("All channels:\n");
-        for (String channel : chatState.keySet()) {
-            System.out.print(channel + ": [ ");
-            for (String user : chatState.get(channel)) {
-                System.out.print(user + " ");
+        if (!chatState.isEmpty()) {
+            System.out.println("All channels:\n");
+            for (String channel : chatState.keySet()) {
+                System.out.print(channel + ": [ ");
+                for (String user : chatState.get(channel)) {
+                    System.out.print(user + " ");
+                }
+                System.out.println("]");
             }
-            System.out.println("]");
         }
     }
 }
