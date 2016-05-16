@@ -6,7 +6,9 @@ import org.jgroups.Receiver;
 import org.jgroups.protocols.*;
 import org.jgroups.protocols.pbcast.*;
 import org.jgroups.stack.ProtocolStack;
+import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos;
 import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatAction;
+import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatMessage;
 import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatAction.ActionType;
 
 import java.net.InetAddress;
@@ -56,7 +58,8 @@ public class Chat {
         if (userChannels.containsKey(channelName)) {
             JChannel channel = userChannels.get(channelName);
             Message msg = new Message();
-            msg.setBuffer(message.getBytes());
+
+            msg.setBuffer(ChatMessage.newBuilder().setMessage(message).build().toByteArray());
             channel.send(msg);
         } else {
             connectToChannel(channelName);
