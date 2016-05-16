@@ -1,5 +1,6 @@
 package pl.edu.agh.ds.chat;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.jgroups.Address;
 import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
@@ -9,10 +10,7 @@ import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatAction;
 import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatAction.ActionType;
 import pl.edu.agh.dsrg.sr.chat.protos.ChatOperationProtos.ChatState;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,11 +37,15 @@ public class ManagementReceiverAdapter extends ReceiverAdapter {
 
     @Override
     public void receive(Message msg) {
-        ChatAction action = (ChatAction) msg.getObject();
-        if (action.getAction() == ActionType.JOIN) {
-            chat.userJoined(action.getNickname(), action.getChannel());
-        } else if (action.getAction() == ActionType.LEAVE) {
-            chat.userLeft(action.getNickname(), action.getChannel());
+        try {
+            ChatAction action = ChatAction.parseFrom(msg.getBuffer());
+            if (action.getAction() == ActionType.JOIN) {
+                chat.userJoined(action.getNickname(), action.getChannel());
+            } else if (action.getAction() == ActionType.LEAVE) {
+                chat.userLeft(action.getNickname(), action.getChannel());
+            }
+        } catch (InvalidProtocolBufferException e) {
+            e.printStackTrace();
         }
     }
 
@@ -62,13 +64,23 @@ public class ManagementReceiverAdapter extends ReceiverAdapter {
                         .build());
             }
         }
-        Util.objectToStream(ChatState.newBuilder().addAllState(actionList).build(), new DataOutputStream(output));
+        byte[] state = ChatState.newBuilder().addAllState(actionList).build().toByteArray();
+        Util.objectToStream(state, new DataOutputStream(output));
     }
 
     @Override
     public void setState(InputStream input) throws Exception {
         Map<String, List<String>> newChatState = new HashMap<>();
-        ChatState state = (ChatState) Util.objectFromStream(new DataInputStream(input));
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int nRead;
+        byte[] data = new byte[16384];
+        while((nRead = input.read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, nRead);
+            System.out.println("bytes read: " + nRead);
+        }
+
+        ChatState state = ChatState.parseFrom(buffer.toByteArray());
 
         for (ChatAction action : state.getStateList()) {
             String channel = action.getChannel();

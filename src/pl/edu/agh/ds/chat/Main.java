@@ -47,7 +47,7 @@ public class Main {
                     String channelName = line.split(" ")[1];
                     try {
                         chat.disconnectFromChannel(channelName);
-                    } catch (InvalidArgumentException e) {
+                    } catch (IllegalArgumentException e) {
                         System.out.println("Invalid channel name.");
                     }
                     System.out.println("Disconnected from channel " + channelName);

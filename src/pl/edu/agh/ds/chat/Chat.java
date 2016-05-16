@@ -15,9 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Chat {
 
-    private static final String MGMT_CHANNEL_MCAST_ADDRESS = "228.8.8.8";
     private static final String CHANNEL_BASE_MCAST_ADDRESS = "230.0.0.";
-    private static final String MANAGEMENT_CHANNEL_NAME = "ChannelManagement321123";
+    private static final String MANAGEMENT_CHANNEL_NAME = "ChatManagement321123";
 
     private final JChannel managementChannel;
     private final Map<String, JChannel> userChannels;
@@ -56,7 +55,8 @@ public class Chat {
     public void sendMessage(String message, String channelName) throws Exception {
         if (userChannels.containsKey(channelName)) {
             JChannel channel = userChannels.get(channelName);
-            Message msg = createObjectMessage(message);
+            Message msg = new Message();
+            msg.setBuffer(message.getBytes());
             channel.send(msg);
         } else {
             connectToChannel(channelName);
@@ -114,18 +114,22 @@ public class Chat {
                 .setChannel(channelName)
                 .setAction(actionType)
                 .build();
-        return createObjectMessage(action);
-    }
 
-    private Message createObjectMessage(Object messageObj) {
         Message msg = new Message();
-        msg.setObject(messageObj);
+        msg.setBuffer(action.toByteArray());
         return msg;
     }
 
+//    private Message createByteArrayMessage(Object messageObj) {
+//
+//        return msg;
+//    }
+
     private JChannel initMgmtChannel() throws Exception {
-        JChannel channel =
-                initChannel(MANAGEMENT_CHANNEL_NAME, new ManagementReceiverAdapter(this), MGMT_CHANNEL_MCAST_ADDRESS);
+        JChannel channel = createBaseManagementChannel();
+        channel.setName(nickname);
+        channel.setReceiver(new ManagementReceiverAdapter(this));
+        channel.connect(MANAGEMENT_CHANNEL_NAME);
         channel.getState(null, 10000);
         return channel;
     }
@@ -143,6 +147,30 @@ public class Chat {
         ProtocolStack stack = new ProtocolStack();
         channel.setProtocolStack(stack);
         stack.addProtocol(new UDP().setValue("mcast_group_addr", InetAddress.getByName(multicastAddress)))
+                .addProtocol(new PING())
+                .addProtocol(new MERGE2())
+                .addProtocol(new FD_SOCK())
+                .addProtocol(new FD_ALL().setValue("timeout", 12000).setValue("interval", 3000))
+                .addProtocol(new VERIFY_SUSPECT())
+                .addProtocol(new BARRIER())
+                .addProtocol(new NAKACK())
+                .addProtocol(new UNICAST2())
+                .addProtocol(new STABLE())
+                .addProtocol(new GMS())
+                .addProtocol(new UFC())
+                .addProtocol(new MFC())
+                .addProtocol(new FRAG2())
+                .addProtocol(new STATE_TRANSFER())
+                .addProtocol(new FLUSH());
+        stack.init();
+        return channel;
+    }
+
+    private JChannel createBaseManagementChannel() throws Exception {
+        JChannel channel = new JChannel(false);
+        ProtocolStack stack = new ProtocolStack();
+        channel.setProtocolStack(stack);
+        stack.addProtocol(new UDP())
                 .addProtocol(new PING())
                 .addProtocol(new MERGE2())
                 .addProtocol(new FD_SOCK())

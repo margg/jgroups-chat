@@ -15,6 +15,7 @@ public class ChatMessageReceiverAdapter extends ReceiverAdapter {
 
     @Override
     public void receive(Message msg) {
-        receiver.putMessage(channelName, msg.getSrc().toString(), (String) msg.getObject());
+        String strMessage = new String(msg.getBuffer());
+        receiver.putMessage(channelName, msg.getSrc().toString(), strMessage);
     }
 }
